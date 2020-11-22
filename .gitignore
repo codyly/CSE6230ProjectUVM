@@ -5,3 +5,4 @@
 *.cubin
 *.fatbin
 *.html
+src/03-BFS/data*

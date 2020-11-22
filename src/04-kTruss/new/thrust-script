@@ -1,0 +1,5 @@
+# !/bin/sh
+#PBS -N jobThrust
+
+cd /home/dikshac/pp/pp_project/parallel/new
+./thrust
