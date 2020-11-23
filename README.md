@@ -1,3 +1,5 @@
+![PassBuildByCUDA10](https://travis-ci.com/codyly/CSE6230ProjectUVM.svg?token=CDfmzUJWJzecrrwezjvh&branch=main)
+
 ### Dataset
 
 [amazon-2008](https://sparse.tamu.edu/LAW/amazon-2008)
@@ -41,7 +43,7 @@ I want to explore the performance of UVM technology in multiple computational co
 | **k-truss** | **speedup, accuracy, iteration numbers** | speedup / iteration numbers v.s. accuracy |
 
 > How to deal with:
-> Generally the accuracy should be guaranteed first, in [the reference paper](https://arxiv.org/abs/1704.00386), when the optimized algorithm goes >to convergence, at least 98% accuracy should be reached by the algorithm. 
+> Generally the accuracy should be guaranteed first, in [the reference paper](https://arxiv.org/abs/1704.00386), when the optimized algorithm goes >to convergence, at least 98% accuracy should be reached by the algorithm.
 
 
 #### How do you define and quantify success in your project
