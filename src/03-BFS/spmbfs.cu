@@ -291,9 +291,9 @@ void csrbfs(const SparseMatrixCOO coo,
     } else if( opt % 3 == 2 ){
         new_source = HALO_II(&csr, NULL, level_back, &done, 1, source);
     }
-    // else{
-    //     new_source = HALO_0(&csr, NULL, level_back, &done, 1, source);
-    // }
+    else{
+        new_source = HALO_0(&csr, NULL, level_back, &done, 1, source);
+    }
 
     prev[new_source] = -1;
     level[new_source] = 0;
@@ -487,38 +487,69 @@ void run(const SparseMatrixCOO coo, int  SOURCE, int *prev, int* level, bool ong
     }
     if(!ongpu)
     {
-
-        // csrbfs(coo, SOURCE, prev, level, level_exp, NULL, ongpu, check, 0);
-        // set(level, coo.N, INT_MAX - 1);
-        // set(prev, coo.N, -1);
-        // level[SOURCE] = 0;
-        // prev[SOURCE] = -1;
-        // csrbfs(coo, SOURCE, prev, level, level_exp, NULL, true, check, 0);
+        set(level, coo.N, INT_MAX - 1);
+        set(prev, coo.N, -1);
+        csrbfs(coo, SOURCE, prev, level, level_exp, NULL, false, check, 0);
     }
     else{
+        memcpy(level_exp_back, level_exp, coo.M * sizeof(int));
 
-        // csrbfs(coo, SOURCE, prev, level, level_exp, NULL, false, check, 0);
         // set(level, coo.N, INT_MAX - 1);
         // set(prev, coo.N, -1);
-        // level[SOURCE] = 0;
-        // prev[SOURCE] = -1;
+        // if (check) {
+        //     memcpy(prev_exp, prev, coo.M * sizeof(int));
+        //     memcpy(level_exp, level, coo.M * sizeof(int));
+        //     // TODO: csrbfs-cpu
+        //     // csrbfs(coo, SOURCE, prev_exp, level_exp, NULL, level_exp_back, ongpu, false, 0);
+        //     csrbfs(coo, SOURCE, prev_exp, level_exp, NULL, level_exp_back, ongpu, false, 3);
+        // }
+        // csrbfs(coo, SOURCE, prev, level, level_exp, level_exp_back, ongpu, check, 3);
+
+        set(level, coo.N, INT_MAX - 1);
+        set(prev, coo.N, -1);
+        if (check) {
+            memcpy(prev_exp, prev, coo.M * sizeof(int));
+            memcpy(level_exp, level, coo.M * sizeof(int));
+            // TODO: csrbfs-cpu
+            csrbfs(coo, SOURCE, prev_exp, level_exp, NULL, level_exp_back, ongpu, false, 4);
+        }
+        // csrbfs(coo, SOURCE, prev, level, level_exp, level_exp_back, ongpu, check, 4);
+
+
+        set(level, coo.N, INT_MAX - 1);
+        set(prev, coo.N, -1);
+        if (check) {
+            memcpy(prev_exp, prev, coo.M * sizeof(int));
+            memcpy(level_exp, level, coo.M * sizeof(int));
+            // TODO: csrbfs-cpu
+            csrbfs(coo, SOURCE, prev_exp, level_exp, NULL, level_exp_back, ongpu, false, 5);
+        }
+        // csrbfs(coo, SOURCE, prev, level, level_exp, level_exp_back, ongpu, check, 5);
+
+
+
+
         // csrbfs(coo, SOURCE, prev, level, level_exp, NULL, ongpu, check, 0);
 
-        memcpy(level_exp_back, level_exp, coo.M * sizeof(int));
-        csrbfs(coo, SOURCE, prev, level, level_exp, level_exp_back, true, false, 4);
+        // set(level, coo.N, INT_MAX - 1);
+        // set(prev, coo.N, -1);
+        // csrbfs(coo, SOURCE, prev, level, level_exp, NULL, ongpu, check, 3);
 
-        set(level, coo.N, INT_MAX - 1);
-        set(prev, coo.N, -1);
-        csrbfs(coo, SOURCE, prev, level, level_exp, level_exp_back, true, false, 3);
 
-        set(level, coo.N, INT_MAX - 1);
-        set(prev, coo.N, -1);
-        csrbfs(coo, SOURCE, prev, level, level_exp, level_exp_back, true, false, 5);
+
+
+        // csrbfs(coo, SOURCE, prev, level, level_exp, level_exp_back, true, false, 4);
 
         // set(level, coo.N, INT_MAX - 1);
         // set(prev, coo.N, -1);
-        // level[SOURCE] = 0;
-        // prev[SOURCE] = -1;
+        // csrbfs(coo, SOURCE, prev, level, level_exp, level_exp_back, true, false, 3);
+
+        // set(level, coo.N, INT_MAX - 1);
+        // set(prev, coo.N, -1);
+        // csrbfs(coo, SOURCE, prev, level, level_exp, level_exp_back, true, false, 5);
+
+        // set(level, coo.N, INT_MAX - 1);
+        // set(prev, coo.N, -1);
         // if (check) {
         //     memcpy(prev_exp, prev, coo.M * sizeof(int));
         //     memcpy(level_exp, level, coo.M * sizeof(int));
