@@ -15,7 +15,7 @@ EXE = $(patsubst %.cu,%.exe,$(CUSRC))
 all: $(EXE) asm
 	@echo "built:" $(EXE)
 
-asm: spmv.ptx
+asm: spmbfs.ptx
 
 run: $(EXE)
 	./spmbfs.exe ./test_matrix.mtx
