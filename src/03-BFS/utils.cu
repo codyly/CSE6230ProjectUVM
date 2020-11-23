@@ -239,7 +239,7 @@ void print_res(const char * codeversion, double run_time, bool check, float * y,
 
 void print_res_bfs(const char * codeversion, double run_time, bool check, int * y, int * y_exp, int M)
 {
-   printf("%12s | %30.6lf", codeversion, run_time);
+   printf("%20s | %30.6lf", codeversion, run_time);
    if ( check )
        printf(" | %30s", same_bfs(y_exp, y, M)? "Y" : "N");
    printf("\n");

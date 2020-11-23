@@ -190,7 +190,7 @@ void SpMBFS_CSR_kernel(const SparseMatrixCSR A, int* prev, int *level, int* curr
 
 	if (id < A.M && level[id] == *curr)
 	{
-		// printf("%d ", id); //This printf gives the order of vertices in BFS	
+		// printf("%d ", A.NNZ); //This printf gives the order of vertices in BFS	
 		// Fa[id] = false;
         // Xa[id] = true;
 		// __syncthreads(); 
@@ -288,6 +288,8 @@ void csrbfs(const SparseMatrixCOO coo,
         int *prev_d, *level_d;
         cudaMallocManaged(&prev_d, coo.N*sizeof(int));
         cudaMallocManaged(&level_d, coo.N*sizeof(int));
+        memcpy(level_d, level, coo.N*sizeof(int));  
+        memcpy(prev_d, prev, coo.N*sizeof(int));  
 
 
         int *curr_d;
@@ -301,6 +303,8 @@ void csrbfs(const SparseMatrixCOO coo,
         cudaMallocManaged(&csr_d, sizeof(SparseMatrixCSR));
         csr_to_device_uvm(csr, csr_d);
 
+        cudaDeviceSynchronize();
+
         int coarse = 1;
         int bs = BLK_SIZE;
         int cgs=(coo.N-1)/(bs)/coarse+1;
@@ -308,14 +312,19 @@ void csrbfs(const SparseMatrixCOO coo,
         CUDA_TIMER_START;
 
         do{
-            *curr_d += 1;
+            *curr_d = *curr_d + 1;
             *done_d = true;
             SpMBFS_CSR_kernel<<<cgs, bs>>>(*csr_d, prev_d, level_d, curr_d, done_d);
+            cudaDeviceSynchronize();
         }while(!(*done_d));   
+
+        cudaDeviceSynchronize();
         
         CUDA_TIMER_END(run_time);
 
-        // memcpy(level, level_d, coo.N*sizeof(int));      
+        memcpy(level, level_d, coo.N*sizeof(int));     
+        
+        // printf("%d\n", csr_d->NNZ);
 
         CUDA_CHK(cudaGetLastError());
 
@@ -326,9 +335,55 @@ void csrbfs(const SparseMatrixCOO coo,
         cudaFree(done_d);
         cudaFree(csr_d);
     }
+    // if(check)
+    //     for(int i=0; i<coo.N; ++i)
+    //     {
+    //         if(level[i] != level_exp[i])
+    //         {
+    //             printf("%d %d %d\n", i, level[i], level_exp[i]);
+    //         }
+    //     }
 
+    const char* tag;
+
+    if(!ongpu){
+        tag = "bfs_on_host";
+    }
+    else{
+        switch(opt){
+            case 0:{
+                tag = "bfs_on_device";
+                break;
+            }
+            case 1:{
+                tag = "bfs_on_device_halo_1";
+                break;
+            }
+            case 2:{
+                tag = "bfs_on_device_halo_2";
+                break;
+            }
+            case 3:{
+                tag = "bfs_uvm";
+                break;
+            }
+            case 4:{
+                tag = "bfs_uvm_halo_1";
+                break;
+            }
+            case 5:{
+                tag = "bfs_uvm_halo_2";
+                break;
+            }
+            default:
+            {
+                tag = "bfs";
+                break;
+            }
+        }
+    }
     csr_free(csr, false);
-    print_res_bfs("csr", run_time, check, level, level_exp, coo.N);
+    print_res_bfs(tag, run_time, check, level, level_exp, coo.N);
 }
 
 
@@ -339,7 +394,7 @@ void run(const SparseMatrixCOO coo, int  SOURCE, int *prev, int* level, bool ong
     level[SOURCE] = 0;
     prev[SOURCE] = -1;
 
-    printf("%12s | %17s%13s", "code version", ongpu ? "gpu " : "cpu ", "run time(sec)");
+    printf("%20s | %17s%13s", "code version", ongpu ? "gpu " : "cpu ", "run time(sec)");
     if (check)
         printf(" | %30s", "correctness");
     printf("\n");
@@ -358,59 +413,42 @@ void run(const SparseMatrixCOO coo, int  SOURCE, int *prev, int* level, bool ong
         // TODO: csrbfs-cpu
         csrbfs(coo, SOURCE, prev_exp, level_exp, NULL, NULL, ongpu, false, 0);
     }
+    if(!ongpu)
+    {
+        csrbfs(coo, SOURCE, prev, level, level_exp, NULL, ongpu, check, 0);
+    }
+    else{
+        csrbfs(coo, SOURCE, prev, level, level_exp, NULL, ongpu, check, 3);
+
+        memcpy(prev_exp_back, prev_exp, coo.M * sizeof(int));
+        memcpy(level_exp_back, level_exp, coo.M * sizeof(int));
+
+
+        set(level, coo.N, INT_MAX - 1);
+        set(prev, coo.N, -1);
+        level[SOURCE] = 0;
+        prev[SOURCE] = -1;
+        if (check) {
+            memcpy(prev_exp, prev, coo.M * sizeof(int));
+            memcpy(level_exp, level, coo.M * sizeof(int));
+            // TODO: csrbfs-cpu
+            csrbfs(coo, SOURCE, prev_exp, level_exp, NULL, level_exp_back, ongpu, false, 1);
+        }
+        csrbfs(coo, SOURCE, prev, level, level_exp, level_exp_back, ongpu, check, 4);
+
+        set(level, coo.N, INT_MAX - 1);
+        set(prev, coo.N, -1);
+        level[SOURCE] = 0;
+        prev[SOURCE] = -1;
+        if (check) {
+            memcpy(prev_exp, prev, coo.M * sizeof(int));
+            memcpy(level_exp, level, coo.M * sizeof(int));
+            // TODO: csrbfs-cpu
+            csrbfs(coo, SOURCE, prev_exp, level_exp, NULL,  level_exp_back, ongpu, false, 2);
+        }
+        csrbfs(coo, SOURCE, prev, level, level_exp, level_exp_back, ongpu, check, 5);
+    }
     
-    // TODO: csrbfs-gpu
-    csrbfs(coo, SOURCE, prev, level, level_exp, NULL, ongpu, check, 0);
-
-    memcpy(prev_exp_back, prev_exp, coo.M * sizeof(int));
-    memcpy(level_exp_back, level_exp, coo.M * sizeof(int));
-
-
-    set(level, coo.N, INT_MAX - 1);
-    set(prev, coo.N, -1);
-    level[SOURCE] = 0;
-    prev[SOURCE] = -1;
-    if (check) {
-        memcpy(prev_exp, prev, coo.M * sizeof(int));
-        memcpy(level_exp, level, coo.M * sizeof(int));
-        // TODO: csrbfs-cpu
-        csrbfs(coo, SOURCE, prev_exp, level_exp, NULL, level_exp_back, ongpu, false, 1);
-    }
-    // csrbfs(coo, SOURCE, prev, level, level_exp, level_exp_back, ongpu, check, 1);
-
-    set(level, coo.N, INT_MAX - 1);
-    set(prev, coo.N, -1);
-    level[SOURCE] = 0;
-    prev[SOURCE] = -1;
-    if (check) {
-        memcpy(prev_exp, prev, coo.M * sizeof(int));
-        memcpy(level_exp, level, coo.M * sizeof(int));
-        // TODO: csrbfs-cpu
-        csrbfs(coo, SOURCE, prev_exp, level_exp, NULL,  level_exp_back, ongpu, false, 2);
-    }
-    // csrbfs(coo, SOURCE, prev, level, level_exp, level_exp_back, ongpu, check, 2);
-
-    set(level, coo.N, INT_MAX - 1);
-    level[SOURCE] = 0;
-    if (check) {
-        memcpy(prev_exp, prev, coo.M * sizeof(int));
-        memcpy(level_exp, level, coo.M * sizeof(int));
-        // TODO: csrbfs-cpu
-        csrbfs(coo, SOURCE, prev_exp, level_exp, NULL,  level_exp_back, ongpu, false, 5);
-    }
-    // csrbfs(coo, SOURCE, prev, level, level_exp, level_exp_back, ongpu, check, 3);
-
-
-    // set(level, coo.N, INT_MAX - 1);
-    // level[SOURCE] = 0;
-    // if (check) {
-    //     memcpy(prev_exp, prev, coo.M * sizeof(int));
-    //     memcpy(level_exp, level, coo.M * sizeof(int));
-    //     // TODO: csrbfs-cpu
-    //     csrbfs(coo, SOURCE, prev_exp, level_exp, NULL,  level_exp_back, ongpu, false, 5);
-    // }
-    // csrbfs(coo, SOURCE, prev, level, level_exp, level_exp_back, ongpu, check, 5);
-
     if (!level_exp_back) free(level_exp_back);
     if (!prev_exp_back) free(prev_exp_back);
     if (!level_exp) free(level_exp);
