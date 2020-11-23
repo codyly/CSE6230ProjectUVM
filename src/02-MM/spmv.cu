@@ -352,9 +352,9 @@ void run(const SparseMatrixCOO coo, const float * x, float * y, bool ongpu, int 
 
     csrspmv(coo, x, y, y_exp, ongpu, check);
 
-    ellspmv(coo, x, y, y_exp, ongpu, check);
+    // ellspmv(coo, x, y, y_exp, ongpu, check);
 
-    hybridspmv(coo, x, y, y_exp, ongpu, K, check);
+    // hybridspmv(coo, x, y, y_exp, ongpu, K, check);
 
     if (!y_exp) free(y_exp);
 }
