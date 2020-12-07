@@ -33,4 +33,9 @@ before_script:
     - make clean
     - make
 
-script: make clean
+script: 
+    - make clean
+    - cd ../04-kTruss
+    - make
+    - ./spkt.exe ./data/Erdos971/Erdos971.mtx cpu 2
+    - make clean
