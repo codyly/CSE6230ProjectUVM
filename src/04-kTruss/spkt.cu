@@ -182,14 +182,14 @@ void SpMM_CSR_ATA(const SparseMatrixCSR A, float * y)  // only for square
             int factor = 0;
 
             for (int element = col_start; element < col_end; ++element) {
-                if(col == A.col_indices[element]){
-                    factor = 1;
+                if(row == A.col_indices[element]){
+                    factor = element;
                     break;
                 }
 
             }
 
-            y[col*A.M + row] = dotProduct * factor;
+            y[factor] = dotProduct;
         }
     }
 
@@ -248,14 +248,14 @@ void SpMM_CSR_ATA_kernel(const SparseMatrixCSR A, float * y)
         int factor = 0;
 
         for (int element = col_start; element < col_end; ++element) {
-            if(col == A.col_indices[element]){
-                factor = 1;
+            if(row == A.col_indices[element]){
+                factor = element;
                 break;
             }
 
         }
 
-        y[col*A.M + row] = dotProduct * factor;
+        y[factor] = dotProduct;
     }
 
 }
@@ -310,13 +310,13 @@ void csrspmm_kt(const SparseMatrixCOO coo, int K, float * y, float * y_exp, bool
 
     float run_time;
 
-    float* S = (float *) malloc (coo.M * coo.M * sizeof(float));
-    if ( !S ) exit (1);
-    set(S, coo.M * coo.M, 0);
+    // float* S = (float *) malloc (coo.NNZ * sizeof(float));
+    // if ( !S ) exit (1);
+    // set(S, coo.M * coo.M, 0);
     if ( !ongpu ) {
         double start_time = omp_get_wtime();
-        SpMM_CSR_ATA(csr, S);
-        buildM(csr, K, S, y);
+        SpMM_CSR_ATA(csr, y);
+        // buildM(csr, K, S, y);
         int * col_indices = (int*) malloc(coo.NNZ*sizeof(int));
         memcpy(col_indices, csr.col_indices, coo.NNZ*sizeof(int));
         bool not_finished = true;
@@ -330,13 +330,13 @@ void csrspmm_kt(const SparseMatrixCOO coo, int K, float * y, float * y_exp, bool
 
         float * y_d;
         int * cid_d;
-        float * S_d;
+        // float * S_d;
         int * nf_d;
 
         if(opt == 0){
             malloc_and_copy( (void **) &y_d, (void *)y, coo.NNZ*sizeof(float));
             malloc_and_copy( (void **) &cid_d, (void *)csr.col_indices, coo.NNZ*sizeof(int));
-            malloc_and_copy( (void **) &S_d, (void *)S, coo.M*coo.M*sizeof(float));
+            // malloc_and_copy( (void **) &S_d, (void *)S, coo.M*coo.M*sizeof(float));
             malloc_and_copy( (void **) &nf_d, (void *)not_finished, sizeof(int));
             SparseMatrixCSR csr_d;
             csr_to_device(csr, &csr_d);
@@ -347,11 +347,11 @@ void csrspmm_kt(const SparseMatrixCOO coo, int K, float * y, float * y_exp, bool
 
             CUDA_TIMER_START;
 
-            SpMM_CSR_ATA_kernel<<<cgs, bs>>>(csr_d, S_d);
+            SpMM_CSR_ATA_kernel<<<cgs, bs>>>(csr_d, y_d);
 
             cgs=(coo.M - 1)/(bs)/coarse+1;
 
-            buildM_kernel<<<cgs, bs>>>(csr_d, K, S_d, y_d);
+            // buildM_kernel<<<cgs, bs>>>(csr_d, K, S_d, y_d);
 
             while(not_finished[0] > 0){
                 not_finished[0] = 0;
@@ -371,12 +371,12 @@ void csrspmm_kt(const SparseMatrixCOO coo, int K, float * y, float * y_exp, bool
         }
         else{
             cudaMallocManaged(&y_d, coo.NNZ*sizeof(float));
-            cudaMallocManaged(&S_d, coo.M*coo.M*sizeof(float));
+            // cudaMallocManaged(&S_d, coo.M*coo.M*sizeof(float));
             cudaMallocManaged(&cid_d, coo.NNZ*sizeof(int));
             cudaMallocManaged(&nf_d, sizeof(int));
 
             memcpy(y_d, y, coo.NNZ*sizeof(float));
-            memcpy(S_d, S, coo.M*coo.M*sizeof(float));
+            // memcpy(S_d, S, coo.M*coo.M*sizeof(float));
             memcpy(cid_d, csr.col_indices, coo.NNZ*sizeof(int));
             memcpy(nf_d, not_finished, sizeof(int));
 
@@ -400,11 +400,11 @@ void csrspmm_kt(const SparseMatrixCOO coo, int K, float * y, float * y_exp, bool
 
             CUDA_TIMER_START;
 
-            SpMM_CSR_ATA_kernel<<<cgs, bs>>>(*csr_d, S_d);
+            SpMM_CSR_ATA_kernel<<<cgs, bs>>>(*csr_d, y_d);
 
             cgs=(coo.M - 1)/(bs)/coarse+1;
 
-            buildM_kernel<<<cgs, bs>>>(*csr_d, K, S_d, y_d);
+            // buildM_kernel<<<cgs, bs>>>(*csr_d, K, S_d, y_d);
 
             while(nf_d[0] > 0){
                 nf_d[0] = 0;
@@ -422,12 +422,12 @@ void csrspmm_kt(const SparseMatrixCOO coo, int K, float * y, float * y_exp, bool
             cudaFree(csr_d);
 
         }
-        cudaFree(S_d);
+        // cudaFree(S_d);
         cudaFree(y_d);
         cudaFree(cid_d);
         cudaFree(nf_d);
     }
-    free(S);
+    // free(S);
     csr_free(csr, false);
     print_res("csr", run_time, check, y, y_exp, coo.NNZ);
 }
