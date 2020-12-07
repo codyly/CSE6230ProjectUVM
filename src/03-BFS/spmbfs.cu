@@ -124,13 +124,13 @@ int HALO_I(SparseMatrixCSR* A, int* prev, int *level, bool *done, int K, int sou
 
     ids[source].harm = INT_MAX;
 
-    sort( ids.begin( ), ids.end( ), [ ]( const struct idnode& lhs, const struct idnode& rhs ){
+    std::sort( ids.begin( ), ids.end( ), [ ]( const struct idnode& lhs, const struct idnode& rhs ){
        return lhs.harm > rhs.harm;
     });
 
-    float* new_value = (float*) malloc(sizeof(float)*A->NNZ);
-    int* new_row = (int*) malloc(sizeof(int)*A->N);
-    int* new_col = (int*) malloc(sizeof(int)*A->NNZ);
+    // float* new_value = (float*) malloc(sizeof(float)*A->NNZ);
+    int* new_row = (int*) calloc(A->N, sizeof(int));
+    int* new_col = (int*) calloc(A->NNZ, sizeof(int));
 
     int start = 0;
     // int new_source
@@ -139,16 +139,24 @@ int HALO_I(SparseMatrixCSR* A, int* prev, int *level, bool *done, int K, int sou
         new_row[i] = start;
         int num_neighbor = A->row_indices[id+1] - A->row_indices[id];
         memcpy(new_col + start, A->col_indices + A->row_indices[id], sizeof(int) * num_neighbor);
-        memcpy(new_value + start, A->values + A->row_indices[id], sizeof(int) * num_neighbor);
+        // memcpy(new_value + start, A->values + A->row_indices[id], sizeof(int) * num_neighbor);
+
         start += num_neighbor;
     }
 
+
+
     memcpy(A->row_indices, new_row, sizeof(int)*A->N);
     memcpy(A->col_indices, new_col, sizeof(int)*A->NNZ);
-    memcpy(A->values, new_value, sizeof(float)*A->NNZ);
+    // memcpy(A->values, new_value, sizeof(float)*A->NNZ);
 
+    // int *old_row = A->row_indices;
+    // int *old_col = A->col_indices;
 
-    free(new_value);
+    // A->col_indices = new_col;
+    // A->row_indices = new_row;
+
+    // free(new_value);
     free(new_col);
     free(new_row);
 
@@ -483,7 +491,7 @@ void run(const SparseMatrixCOO coo, int  SOURCE, int *prev, int* level, bool ong
         memcpy(prev_exp, prev, coo.M * sizeof(int));
         memcpy(level_exp, level, coo.M * sizeof(int));
         // TODO: csrbfs-cpu
-        csrbfs(coo, SOURCE, prev_exp, level_exp, NULL, NULL, true, false, 3);
+        csrbfs(coo, SOURCE, prev_exp, level_exp, NULL, NULL, false, false, 0);
     }
     if(!ongpu)
     {
@@ -494,8 +502,8 @@ void run(const SparseMatrixCOO coo, int  SOURCE, int *prev, int* level, bool ong
     else{
         memcpy(level_exp_back, level_exp, coo.M * sizeof(int));
 
-        // set(level, coo.N, INT_MAX - 1);
-        // set(prev, coo.N, -1);
+            // set(level, coo.N, INT_MAX - 1);
+            // set(prev, coo.N, -1);
         // if (check) {
         //     memcpy(prev_exp, prev, coo.M * sizeof(int));
         //     memcpy(level_exp, level, coo.M * sizeof(int));
@@ -511,19 +519,19 @@ void run(const SparseMatrixCOO coo, int  SOURCE, int *prev, int* level, bool ong
             memcpy(prev_exp, prev, coo.M * sizeof(int));
             memcpy(level_exp, level, coo.M * sizeof(int));
             // TODO: csrbfs-cpu
-            csrbfs(coo, SOURCE, prev_exp, level_exp, NULL, level_exp_back, ongpu, false, 4);
+            csrbfs(coo, SOURCE, prev_exp, level_exp, NULL, level_exp_back, ongpu, false, 3);
         }
         // csrbfs(coo, SOURCE, prev, level, level_exp, level_exp_back, ongpu, check, 4);
 
 
-        set(level, coo.N, INT_MAX - 1);
-        set(prev, coo.N, -1);
-        if (check) {
-            memcpy(prev_exp, prev, coo.M * sizeof(int));
-            memcpy(level_exp, level, coo.M * sizeof(int));
-            // TODO: csrbfs-cpu
-            csrbfs(coo, SOURCE, prev_exp, level_exp, NULL, level_exp_back, ongpu, false, 5);
-        }
+        // set(level, coo.N, INT_MAX - 1);
+        // set(prev, coo.N, -1);
+        // if (check) {
+        //     memcpy(prev_exp, prev, coo.M * sizeof(int));
+        //     memcpy(level_exp, level, coo.M * sizeof(int));
+        //     // TODO: csrbfs-cpu
+        //     csrbfs(coo, SOURCE, prev_exp, level_exp, NULL, level_exp_back, ongpu, false, 5);
+        // }
         // csrbfs(coo, SOURCE, prev, level, level_exp, level_exp_back, ongpu, check, 5);
 
 
