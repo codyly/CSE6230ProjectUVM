@@ -10,19 +10,19 @@
 
 const int BLK_SIZE = 256;
 
-__global__ 
-void KT_Kernel_1(const int* IA, int* JA, float* M, const int NUM_VERTICE, const int K){
+__global__
+void KT_Kernel_1(const int* IA, int* JA, float* M, const int NUM_VERTICE, const int NNZ,  const int K){
     const int row = blockIdx.x * blockDim.x + threadIdx.x;
     if(row < NUM_VERTICE){
         int i = row;
         int a12_start = *(IA+i);
         int a12_end = *(IA+i+1);
-        int *JAL = JA + a12_start;
+        register int *JAL = JA + a12_start;
 
         for(int l = a12_start; *JAL !=0 && l!= a12_end; ++l){
 
             int A22_start = *(IA + *(JAL));
-            int A22_end = *(IA + *(JAL) + l);
+            int A22_end = *(IA + *(JAL) + 1);
             JAL ++;
 
             float ML = 0;
@@ -31,9 +31,9 @@ void KT_Kernel_1(const int* IA, int* JA, float* M, const int NUM_VERTICE, const 
             float *MJ = M + A22_start;
             float *MK = M + l + 1;
 
-            while(*JAK != 0 && *JAJ != 0 && JAK != JA + a12_end && JAJ !=JA + A22_end){
-                int Jaj_val = *JAJ;
-                int update_val = (Jaj_val == *JAK);
+            while( *JAK != 0 && *JAJ != 0 && JAK != JA + a12_end && JAJ !=JA + A22_end){
+                register int Jaj_val = *JAJ;
+                register int update_val = (Jaj_val == *JAK);
 
                 if (update_val){
                     atomicAdd(MK, 1);
@@ -55,15 +55,16 @@ void KT_Kernel_1(const int* IA, int* JA, float* M, const int NUM_VERTICE, const 
                     // ++(*MJ);
                 }
                 MJ += advanceJ;
+
             }
-            
-            // *(M+l) += ML;
+
+            // // *(M+l) += ML;
             atomicAdd(M+l, ML);
         }
     }
 }
 
-__global__ 
+__global__
 void KT_Kernel_2(const int* IA, int* JA, float* M, const int NUM_VERTICE, const int K, int* not_finished){
     const int row = blockIdx.x * blockDim.x + threadIdx.x;
     if(row < NUM_VERTICE){
@@ -102,10 +103,10 @@ void buildM(const SparseMatrixCSR A, const int K, const float * S, float * M){
         for (int element = row_start; element < row_end; ++element) {
 
             if(S[row*A.M + A.col_indices[element]] >= (K - 2.0)){
-                M[element] = 1;    
+                M[element] = 1;
             }
             else{
-                M[element] = 0; 
+                M[element] = 0;
             }
 
         }
@@ -124,10 +125,10 @@ void buildM_kernel(const SparseMatrixCSR A, const int K, const float * S, float 
         const int row_end = A.row_indices[row+1];
         for (int element = row_start; element < row_end; ++element) {
             if(S[row*A.M + A.col_indices[element]] >= K - 2){
-                M[element] = 1;    
+                M[element] = 1;
             }
             else{
-                M[element] = 0; 
+                M[element] = 0;
             }
 
         }
@@ -334,8 +335,10 @@ void csrspmm_kt(const SparseMatrixCOO coo, int K, float * y, float * y_exp, bool
         int * nf_d;
 
         if(opt == 0){
+            int* rid_d;
             malloc_and_copy( (void **) &y_d, (void *)y, coo.NNZ*sizeof(float));
             malloc_and_copy( (void **) &cid_d, (void *)csr.col_indices, coo.NNZ*sizeof(int));
+            malloc_and_copy( (void **) &rid_d, (void *)csr.row_indices, coo.M*sizeof(int));
             // malloc_and_copy( (void **) &S_d, (void *)S, coo.M*coo.M*sizeof(float));
             malloc_and_copy( (void **) &nf_d, (void *)not_finished, sizeof(int));
             SparseMatrixCSR csr_d;
@@ -356,7 +359,7 @@ void csrspmm_kt(const SparseMatrixCOO coo, int K, float * y, float * y_exp, bool
             while(not_finished[0] > 0){
                 not_finished[0] = 0;
                 cudaMemcpy(nf_d, not_finished, sizeof(int), cudaMemcpyHostToDevice);
-                KT_Kernel_1<<<cgs, bs>>>(csr_d.row_indices, cid_d, y_d, csr_d.M, K);
+                KT_Kernel_1<<<cgs, bs>>>(csr_d.row_indices, cid_d, y_d, csr_d.M, csr_d.NNZ, K);
                 KT_Kernel_2<<<cgs, bs>>>(csr_d.row_indices, cid_d, y_d, csr_d.M, K, nf_d);
                 cudaMemcpy(not_finished, nf_d, sizeof(int), cudaMemcpyDeviceToHost);
             }
@@ -375,7 +378,7 @@ void csrspmm_kt(const SparseMatrixCOO coo, int K, float * y, float * y_exp, bool
             cudaMallocManaged(&cid_d, coo.NNZ*sizeof(int));
             cudaMallocManaged(&nf_d, sizeof(int));
 
-            memcpy(y_d, y, coo.NNZ*sizeof(float));
+            memcpy(y_d, y, csr.NNZ*sizeof(float));
             // memcpy(S_d, S, coo.M*coo.M*sizeof(float));
             memcpy(cid_d, csr.col_indices, coo.NNZ*sizeof(int));
             memcpy(nf_d, not_finished, sizeof(int));
@@ -402,14 +405,14 @@ void csrspmm_kt(const SparseMatrixCOO coo, int K, float * y, float * y_exp, bool
 
             SpMM_CSR_ATA_kernel<<<cgs, bs>>>(*csr_d, y_d);
 
-            cgs=(coo.M - 1)/(bs)/coarse+1;
+            // cgs=(coo.M - 1)/(bs)/coarse+1;
 
             // buildM_kernel<<<cgs, bs>>>(*csr_d, K, S_d, y_d);
 
             while(nf_d[0] > 0){
                 nf_d[0] = 0;
-                KT_Kernel_1<<<cgs, bs>>>(csr_d->row_indices, cid_d, y_d, csr_d->M, K);
-                KT_Kernel_2<<<cgs, bs>>>(csr_d->row_indices, cid_d, y_d, csr_d->M, K, nf_d);
+                KT_Kernel_1<<<cgs, bs>>>(csr_d->row_indices, csr_d->col_indices, y_d, csr_d->M, csr_d->NNZ, K);
+                KT_Kernel_2<<<cgs, bs>>>(csr_d->row_indices, csr_d->col_indices, y_d, csr_d->M, K, nf_d);
             }
 
             CUDA_TIMER_END(run_time);

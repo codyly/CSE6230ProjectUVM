@@ -11,7 +11,7 @@
 #include<string.h>
 #include<stdlib.h>
 #include <stdint.h>
-#define NUM_THREADS 4
+#define NUM_THREADS 8
 #define CHUNK 1
 
 bool openmpKT(int *IA, int *JA, float *M, int NUM_VERTICES, int K);

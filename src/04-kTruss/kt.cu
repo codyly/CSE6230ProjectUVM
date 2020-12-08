@@ -4,13 +4,13 @@
 
 //     int IA[] = {0, 3, 5, 8, 9, 12};
 //     int JA[] = {1, 2, 4, 0, 4, 0, 3, 4, 2, 0, 1, 2};
-    
+
 //     // int IA[] = {0, 3, 4, 5, 7, 7, 7};
 //     // int JA[] = {1, 2, 4, 4, 3, 4};
 
 
 //     // float S[] =  {1, 1, 2, 1, 1, 1, 0, 1, 0, 2, 1, 1};
-    
+
 //     // float M[] =  {1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1};
 //     // float M[] =  {1, 1, 1, 1, 0, 1};
 //     float M[] =     {0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0};
@@ -39,7 +39,7 @@ bool serialKT(int *IA, int *JA, float *M, int NUM_VERTICES, int K){
         for(int l = a12_start; *JAL !=0 && l!= a12_end; ++l){
 
             int A22_start = *(IA + *(JAL));
-            int A22_end = *(IA + *(JAL) + l);
+            int A22_end = *(IA + *(JAL) + 1);
             JAL ++;
 
             float ML = 0;
@@ -112,7 +112,7 @@ bool openmpKT(int *IA, int *JA, float *M, int NUM_VERTICES, int K){
         for(int l = a12_start; *JAL !=0 && l!= a12_end; ++l){
 
             int A22_start = *(IA + *(JAL));
-            int A22_end = *(IA + *(JAL) + l);
+            int A22_end = *(IA + *(JAL) + 1);
             JAL ++;
 
             float ML = 0;
